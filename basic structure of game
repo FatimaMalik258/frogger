@@ -1,0 +1,207 @@
+#include <SFML/Graphics.hpp>
+#include <optional>
+#include <vector>
+#include <algorithm>
+
+struct Car
+{
+    sf::RectangleShape shape;
+    float speed;
+};
+
+int main()
+{
+    sf::RenderWindow window(
+        sf::VideoMode({ 800, 600 }),
+        "Frogger Game"
+    );
+
+    window.setFramerateLimit(60);
+
+    // Background
+    sf::RectangleShape background({ 800, 600 });
+    background.setFillColor(sf::Color(50, 150, 60));
+
+    // Road
+    sf::RectangleShape road({ 800, 300 });
+    road.setPosition({ 0, 140 });
+    road.setFillColor(sf::Color(65, 65, 65));
+
+    // Player (Frog)
+    sf::CircleShape frog(15);
+    frog.setFillColor(sf::Color::Green);
+    frog.setPosition({ 385, 545 });
+
+    // Goal area
+    sf::RectangleShape goal({ 800, 60 });
+    goal.setPosition({ 0, 40 });
+    goal.setFillColor(sf::Color(30, 180, 70));
+
+    // Cars
+    std::vector<Car> cars;
+
+    auto addCar = [&](float x, float y,
+        sf::Color color, float speed)
+        {
+            sf::RectangleShape car({ 90, 32 });
+            car.setPosition({ x, y });
+            car.setFillColor(color);
+
+            cars.push_back({ car, speed });
+        };
+
+    // Lane 1
+    addCar(50, 160, sf::Color::Red, 180);
+    addCar(350, 160, sf::Color::Red, 180);
+    addCar(650, 160, sf::Color::Red, 180);
+
+    // Lane 2
+    addCar(100, 220, sf::Color::Blue, -150);
+    addCar(400, 220, sf::Color::Blue, -150);
+    addCar(700, 220, sf::Color::Blue, -150);
+
+    // Lane 3
+    addCar(0, 280, sf::Color::Yellow, 200);
+    addCar(300, 280, sf::Color::Yellow, 200);
+    addCar(600, 280, sf::Color::Yellow, 200);
+
+    // Lane 4
+    addCar(150, 340, sf::Color::Magenta, -170);
+    addCar(450, 340, sf::Color::Magenta, -170);
+    addCar(750, 340, sf::Color::Magenta, -170);
+
+    // Lane 5
+    addCar(50, 400, sf::Color::Cyan, 160);
+    addCar(350, 400, sf::Color::Cyan, 160);
+    addCar(650, 400, sf::Color::Cyan, 160);
+
+    sf::Clock clock;
+
+    int score = 0;
+
+    while (window.isOpen())
+    {
+        float dt = clock.restart().asSeconds();
+
+        // Events
+        while (const std::optional event = window.pollEvent())
+        {
+            if (event->is<sf::Event::Closed>())
+            {
+                window.close();
+            }
+
+            if (const auto* key =
+                event->getIf<sf::Event::KeyPressed>())
+            {
+                if (key->code == sf::Keyboard::Key::Escape)
+                    window.close();
+
+                if (key->code == sf::Keyboard::Key::Up)
+                    frog.move({ 0, -40 });
+
+                if (key->code == sf::Keyboard::Key::Down)
+                    frog.move({ 0, 40 });
+
+                if (key->code == sf::Keyboard::Key::Left)
+                    frog.move({ -40, 0 });
+
+                if (key->code == sf::Keyboard::Key::Right)
+                    frog.move({ 40, 0 });
+            }
+        }
+
+        // Keep frog inside the screen
+        sf::Vector2f pos = frog.getPosition();
+
+        pos.x = std::clamp(pos.x, 0.f, 770.f);
+        pos.y = std::clamp(pos.y, 40.f, 570.f);
+
+        frog.setPosition(pos);
+
+        // Move cars
+        for (auto& car : cars)
+        {
+            car.shape.move({ car.speed * dt, 0 });
+
+            float x = car.shape.getPosition().x;
+
+            if (car.speed > 0 && x > 810)
+                car.shape.setPosition({ -100,
+                    car.shape.getPosition().y });
+
+            if (car.speed < 0 && x < -100)
+                car.shape.setPosition({ 810,
+                    car.shape.getPosition().y });
+        }
+
+        // Collision detection
+        bool collision = false;
+
+        for (const auto& car : cars)
+        {
+            sf::Vector2f frogPos = frog.getPosition();
+            sf::Vector2f carPos = car.shape.getPosition();
+
+            bool overlap =
+                frogPos.x < carPos.x + 90 &&
+                frogPos.x + 30 > carPos.x &&
+                frogPos.y < carPos.y + 32 &&
+                frogPos.y + 30 > carPos.y;
+
+            if (overlap)
+            {
+                collision = true;
+                break;
+            }
+        }
+
+        // Reset frog after collision
+        if (collision)
+        {
+            frog.setPosition({ 385, 545 });
+        }
+
+        // Successful crossing
+        if (frog.getPosition().y <= 60)
+        {
+            score++;
+
+            window.setTitle(
+                "Frogger Game - Score: " +
+                std::to_string(score)
+            );
+
+            frog.setPosition({ 385, 545 });
+        }
+
+        // Drawing
+        window.clear();
+
+        window.draw(background);
+        window.draw(goal);
+        window.draw(road);
+
+        // Road lane markings
+        for (int y = 200; y <= 440; y += 60)
+        {
+            sf::RectangleShape line({ 800, 2 });
+            line.setPosition({ 0, static_cast<float>(y) });
+            line.setFillColor(sf::Color::White);
+            window.draw(line);
+        }
+
+        // Draw cars
+        for (const auto& car : cars)
+        {
+            window.draw(car.shape);
+        }
+
+        // Draw frog
+        window.draw(frog);
+
+        window.display();
+    }
+
+    return 0;
+}
